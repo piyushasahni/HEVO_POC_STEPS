@@ -1,0 +1,15 @@
+version: 2
+
+sources:
+  - name: your_source_name
+    database: your_database
+    schema: your_schema
+    tables:
+      - name: your_table_name
+
+models:
+  - name: your_model_name
+    description: "Description of your model"
+    columns:
+      - name: column_name
+        description: "Description of the column"

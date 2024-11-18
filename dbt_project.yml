@@ -1,0 +1,11 @@
+name: 'your_project_name'
+version: '1.0.0'
+profile: 'your_profile_name'
+target-path: "target"
+clean-targets:
+  - "target"
+  - "dbt_modules"
+
+models:
+  your_project_name:
+    +materialized: view  # Change to 'table' if you prefer tables
