@@ -18,6 +18,9 @@ This repository provides a comprehensive guide to setting up a data integration 
   - [Setting Up Hevo Pipeline](#setting-up-hevo-pipeline)
   - [Configuring Snowflake as the Destination](#configuring-snowflake-as-the-destination)
   - [Data Transfer and Verification](#data-transfer-and-verification)
+- [Step 4: Setting Up dbt with Snowflake](#step-4-setting-up-dbt-with-snowflake)
+  - [Installing and Configuring dbt](#installing-and-configuring-dbt)
+  - [Creating and Managing Models](#creating-and-managing-models)
 
 ---
 
@@ -205,3 +208,138 @@ CREATE TABLE <POSTGRES_SCHEMA>.raw_payments (
 1. Map the source tables from PostgreSQL to target tables in Snowflake (OR) Use Automapping capability of Hevo data platform.
 2. Verify that the data is transferred correctly by querying the Snowflake tables.
 
+
+## Step 4: Setting Up dbt with Snowflake
+
+This guide provides instructions to set up and configure dbt (Data Build Tool) with Snowflake for data modeling and management.
+
+## Installing and Configuring dbt
+
+1. Update and install necessary packages:
+    ```bash
+    sudo apt-get update
+    sudo apt-get install -y python3-pip python3-venv git
+    ```
+2. Create and activate a virtual environment for dbt:
+    ```bash
+    python3 -m venv dbt-env
+    source dbt-env/bin/activate
+    ```
+3. Install dbt for Snowflake:
+    ```bash
+    pip install dbt-snowflake
+    ```
+4. Clone the repository for the dbt project:
+    ```bash
+    git clone <GITHUB REPO URL>
+    cd <GITHUB REPO NAME>
+    ```
+5. Initialize a dbt project:
+    ```bash
+    dbt init <PROJECT NAME>
+    ```
+    When prompted:
+    - Account: Enter your Snowflake account (e.g., `<VALUE>.us-east-1`)
+    - Role (dev role): `<ROLE>`
+    - Threads: Enter `1`
+
+6. Edit the `dbt_project.yml` file to connect dbt to Snowflake:
+    ```bash
+    touch dbt_project.yml
+    nano dbt_project.yml
+    ```
+    Example configuration:
+    ```yaml
+    name: '<PROJECT NAME>'
+    version: '1.0.0'
+    profile: '<PROJECT NAME>'
+    target-path: "target"  # directory which will store compiled SQL files
+    clean-targets:
+      - "target"
+      - "dbt_modules"
+
+    models:
+      <PROJECT NAME>:
+        +materialized: view  # or 'table' if you want to create tables
+    ```
+
+7. Test the dbt setup:
+    ```bash
+    dbt debug
+    ```
+
+## Creating and Managing Models
+
+1. Create a new model file:
+    ```bash
+    touch customer_aggregation.sql
+    nano customer_aggregation.sql
+    ```
+2. Add SQL logic to the model file:
+    ```sql
+    WITH customer_orders AS (
+    SELECT
+        c.id AS customer_id,
+        c.first_name,
+        c.last_name,
+        MIN(o.order_date) AS first_order,
+        MAX(o.order_date) AS most_recent_order,
+        COUNT(o.id) AS number_of_orders
+    FROM {{ source('<SCHEMA>', 'raw_customers') }} c
+    LEFT JOIN {{ source('<SCHEMA>', 'raw_orders') }} o
+    ON c.id = o.user_id
+    GROUP BY c.id, c.first_name, c.last_name
+    ),
+    customer_lifetime_value AS (
+        SELECT
+            o.user_id AS customer_id,
+            SUM(p.amount) AS customer_lifetime_value
+        FROM {{ source('<SCHEMA>', 'raw_orders') }} o
+        LEFT JOIN {{ source('<SCHEMA>', 'raw_payments') }} p
+        ON o.id = p.order_id
+        GROUP BY o.user_id
+    )
+    SELECT
+        co.customer_id,
+        co.first_name,
+        co.last_name,
+        co.first_order,
+        co.most_recent_order,
+        co.number_of_orders,
+        clv.customer_lifetime_value
+    FROM customer_orders co
+    LEFT JOIN customer_lifetime_value clv
+    ON co.customer_id = clv.customer_id;
+    ```
+
+3. Run dbt models:
+    ```bash
+    cd ~/<GITHUB REPO NAME>
+    dbt run
+    ```
+
+4. Organize models and schema:
+    ```bash
+    mkdir models
+    mv customer_aggregation.sql models/
+    touch models/schema.yml
+    nano models/schema.yml
+    ```
+5. Example `schema.yml` configuration:
+    ```yaml
+    version: 2
+
+    sources:
+      - name: <PROJECT NAME>
+        database: <DB NAME>  # Your Snowflake database name
+        schema: <SCHEMA>  # Your Snowflake schema name
+        tables:
+          - name: raw_customers
+          - name: raw_orders
+          - name: raw_payments
+    ```
+
+6. Run dbt models with schema:
+    ```bash
+    dbt run
+    ```
