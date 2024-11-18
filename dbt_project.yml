@@ -1,11 +1,11 @@
-name: 'your_project_name'
-version: '2.0.0'
-profile: 'your_profile_name'
-target-path: "target"
+name: 'dbt_hevo'
+version: '1.0.0'
+profile: 'dbt_hevo'
+target-path: "target"  # directory which will store compiled SQL files
 clean-targets:
   - "target"
   - "dbt_modules"
 
 models:
-  your_project_name:
-    +materialized: view  # Change to 'table' if you prefer tables
+  dbt_hevo:
+    +materialized: view  # or 'table' if you want to create tables
