@@ -18,9 +18,13 @@ This repository provides a comprehensive guide to setting up a data integration 
   - [Setting Up Hevo Pipeline](#setting-up-hevo-pipeline)
   - [Configuring Snowflake as the Destination](#configuring-snowflake-as-the-destination)
   - [Data Transfer and Verification](#data-transfer-and-verification)
-- [Step 4: Setting Up dbt with Snowflake](#step-4-setting-up-dbt-with-snowflake)
-  - [Installing and Configuring dbt](#installing-and-configuring-dbt)
-  - [Creating and Managing Models](#creating-and-managing-models)
+- [Step 4: Setting Up dbt Project](#step-4-setting-up-dbt-project)
+  - [Configuring dbt Project File](#configuring-dbt-project-file)
+  - [Creating dbt Profiles](#creating-dbt-profiles)
+- [Step 5: Building dbt Models](#step-5-building-dbt-models)
+  - [Creating Model Files](#creating-model-files)
+  - [Creating Schema File](#creating-schema-file)
+- [Step 6: Running dbt Models](#step-6-running-dbt-models)
 
 ---
 
@@ -208,94 +212,94 @@ CREATE TABLE <POSTGRES_SCHEMA>.raw_payments (
 1. Map the source tables from PostgreSQL to target tables in Snowflake (OR) Use Automapping capability of Hevo data platform.
 2. Verify that the data is transferred correctly by querying the Snowflake tables.
 
+## Step 4: Setting Up dbt Project
 
-## Step 4: Setting Up dbt with Snowflake
+### Configuring dbt Project File
 
-This guide provides instructions to set up and configure dbt (Data Build Tool) with Snowflake for data modeling and management.
-
-## Installing and Configuring dbt
-
-1. Update and install necessary packages:
+1. Create a new dbt project directory:
     ```bash
-    sudo apt-get update
-    sudo apt-get install -y python3-pip python3-venv git
+    mkdir dbt_hevo_project
+    cd dbt_hevo_project
     ```
-2. Create and activate a virtual environment for dbt:
+2. Initialize the dbt project:
     ```bash
-    python3 -m venv dbt-env
-    source dbt-env/bin/activate
+    dbt init dbt_hevo_project
     ```
-3. Install dbt for Snowflake:
-    ```bash
-    pip install dbt-snowflake
-    ```
-4. Clone the repository for the dbt project:
-    ```bash
-    git clone <GITHUB REPO URL>
-    cd <GITHUB REPO NAME>
-    ```
-5. Initialize a dbt project:
-    ```bash
-    dbt init <PROJECT NAME>
-    ```
-    When prompted:
-    - Account: Enter your Snowflake account (e.g., `<VALUE>.us-east-1`)
-    - Role (dev role): `<ROLE>`
-    - Threads: Enter `1`
-
-6. Edit the `dbt_project.yml` file to connect dbt to Snowflake:
-    ```bash
-    touch dbt_project.yml
-    nano dbt_project.yml
-    ```
-    Example configuration:
+3. Edit the `dbt_project.yml` file to configure the project:
     ```yaml
-    name: '<PROJECT NAME>'
-    version: '1.0.0'
-    profile: '<PROJECT NAME>'
-    target-path: "target"  # directory which will store compiled SQL files
-    clean-targets:
-      - "target"
-      - "dbt_modules"
+    name: 'dbt_hevo_project'
+    version: '1.0'
+    config-version: 2
+
+    profile: 'hevo_profile'
+
+    source-paths: ["models"]
+    target-path: "target"
+    clean-targets: ["target"]
+
+    vars:
+      hevo_database: 'HEVO_DB'
+      hevo_schema: 'HEVO_SCHEMA'
 
     models:
-      <PROJECT NAME>:
-        +materialized: view  # or 'table' if you want to create tables
+      dbt_hevo_project:
+        +materialized: view
     ```
 
-7. Test the dbt setup:
+### Creating dbt Profiles
+
+Create a `profiles.yml` file to store Snowflake connection details:
+```yaml
+hevo_profile:
+  target: dev
+  outputs:
+    dev:
+      type: snowflake
+      account: xnb40345.us-east-1
+      user: piyushasahni
+      password: '{{ env_var("SNOWFLAKE_PASSWORD") }}'  # Use an environment variable for security
+      role: ACCOUNTADMIN
+      database: HEVO_DB
+      warehouse: COMPUTE_WH
+      schema: HEVO_SCHEMA
+      authenticator: externalbrowser
+```
+
+Place `profiles.yml` in the `~/.dbt/` directory on your system.
+
+---
+
+## Step 5: Building dbt Models
+
+### Creating Model Files
+
+1. Navigate to the `models` directory and create a new SQL model file:
     ```bash
-    dbt debug
+    mkdir models
+    cd models
+    touch customer_orders_lifetime_value.sql
     ```
-
-## Creating and Managing Models
-
-1. Create a new model file:
-    ```bash
-    touch customer_aggregation.sql
-    nano customer_aggregation.sql
-    ```
-2. Add SQL logic to the model file:
+2. Add the following content to the `customer_orders_lifetime_value.sql` file:
     ```sql
     WITH customer_orders AS (
-    SELECT
-        c.id AS customer_id,
-        c.first_name,
-        c.last_name,
-        MIN(o.order_date) AS first_order,
-        MAX(o.order_date) AS most_recent_order,
-        COUNT(o.id) AS number_of_orders
-    FROM {{ source('<SCHEMA>', 'raw_customers') }} c
-    LEFT JOIN {{ source('<SCHEMA>', 'raw_orders') }} o
-    ON c.id = o.user_id
-    GROUP BY c.id, c.first_name, c.last_name
+        SELECT
+            c.id AS customer_id,
+            c.first_name,
+            c.last_name,
+            MIN(o.order_date) AS first_order,
+            MAX(o.order_date) AS most_recent_order,
+            COUNT(o.id) AS number_of_orders
+        FROM {{ source('hevo_schema', 'raw_customers') }} c
+        LEFT JOIN {{ source('hevo_schema', 'raw_orders') }} o
+        ON c.id = o.user_id
+        GROUP BY c.id, c.first_name, c.last_name
     ),
     customer_lifetime_value AS (
         SELECT
             o.user_id AS customer_id,
             SUM(p.amount) AS customer_lifetime_value
-        FROM {{ source('<SCHEMA>', 'raw_orders') }} o
-        LEFT JOIN {{ source('<SCHEMA>', 'raw_payments') }} p
+        FROM {{ source('hevo_schema', 'raw_orders') }} o
+        LEFT JOIN {{ source('hevo_schema', 'raw_payments') }} p
         ON o.id = p.order_id
         GROUP BY o.user_id
     )
@@ -309,37 +313,52 @@ This guide provides instructions to set up and configure dbt (Data Build Tool) w
         clv.customer_lifetime_value
     FROM customer_orders co
     LEFT JOIN customer_lifetime_value clv
-    ON co.customer_id = clv.customer_id;
+    ON co.customer_id = clv.customer_id
     ```
 
-3. Run dbt models:
-    ```bash
-    cd ~/<GITHUB REPO NAME>
-    dbt run
-    ```
+### Creating Schema File
 
-4. Organize models and schema:
+Create a `schema.yml` file to define sources and model metadata:
+1. Create and open the `schema.yml` file:
     ```bash
-    mkdir models
-    mv customer_aggregation.sql models/
-    touch models/schema.yml
-    nano models/schema.yml
+    touch schema.yml
     ```
-5. Example `schema.yml` configuration:
+2. Add the following content:
     ```yaml
     version: 2
 
     sources:
-      - name: <PROJECT NAME>
-        database: <DB NAME>  # Your Snowflake database name
-        schema: <SCHEMA>  # Your Snowflake schema name
+      - name: hevo_schema
+        database: HEVO_DB
+        schema: HEVO_SCHEMA
         tables:
           - name: raw_customers
           - name: raw_orders
           - name: raw_payments
+
+    models:
+      - name: customer_orders_lifetime_value
+        description: "A model combining customer order history with their lifetime value."
+        columns:
+          - name: customer_id
+            description: "Unique identifier for a customer"
+          - name: first_name
+            description: "Customer's first name"
+          - name: last_name
+            description: "Customer's last name"
+          - name: first_order
+            description: "Date of the customer's first order"
+          - name: most_recent_order
+            description: "Date of the customer's most recent order"
+          - name: number_of_orders
+            description: "Total number of orders by the customer"
+          - name: customer_lifetime_value
+            description: "Total value of payments made by the customer"
     ```
 
-6. Run dbt models with schema:
-    ```bash
-    dbt run
-    ```
+## Step 6: Running dbt Models
+
+1. Configure GitHub repository details on Hevo data platform
+2. Push all the files created in Step 5 in the GitHub repository in the correct branch
+3. Press 'Test & Continue'
+4. Run the dbt model
