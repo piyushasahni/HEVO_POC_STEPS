@@ -2,9 +2,28 @@ version: 2
 
 sources:
   - name: hevo_schema
-    database: HEVO_DB  # Your Snowflake database name
-    schema: HEVO_SCHEMA  # Your Snowflake schema name
+    database: HEVO_DB
+    schema: HEVO_SCHEMA
     tables:
       - name: raw_customers
       - name: raw_orders
       - name: raw_payments
+
+models:
+  - name: customer_orders_lifetime_value
+    description: "A model combining customer order history with their lifetime value."
+    columns:
+      - name: customer_id
+        description: "Unique identifier for a customer"
+      - name: first_name
+        description: "Customer's first name"
+      - name: last_name
+        description: "Customer's last name"
+      - name: first_order
+        description: "Date of the customer's first order"
+      - name: most_recent_order
+        description: "Date of the customer's most recent order"
+      - name: number_of_orders
+        description: "Total number of orders by the customer"
+      - name: customer_lifetime_value
+        description: "Total value of payments made by the customer"

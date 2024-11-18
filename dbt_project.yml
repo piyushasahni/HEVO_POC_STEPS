@@ -1,11 +1,17 @@
-name: 'dbt_hevo'
-version: '1.0.0'
-profile: 'dbt_hevo'
-target-path: "target"  # directory which will store compiled SQL files
-clean-targets:
-  - "target"
-  - "dbt_modules"
+name: 'dbt_hevo_project'
+version: '1.0'
+config-version: 2
+
+profile: 'hevo_profile'
+
+source-paths: ["models"]
+target-path: "target"
+clean-targets: ["target"]
+
+vars:
+  hevo_database: 'HEVO_DB'
+  hevo_schema: 'HEVO_SCHEMA'
 
 models:
-  dbt_hevo:
-    +materialized: view  # or 'table' if you want to create tables
+  dbt_hevo_project:
+    +materialized: view

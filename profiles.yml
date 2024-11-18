@@ -1,0 +1,13 @@
+hevo_profile:
+  target: dev
+  outputs:
+    dev:
+      type: snowflake
+      account: xnb40345.us-east-1
+      user: piyushasahni
+      password: '{{ env_var("SNOWFLAKE_PASSWORD") }}'  # Use an environment variable for security
+      role: ACCOUNTADMIN
+      database: HEVO_DB
+      warehouse: COMPUTE_WH
+      schema: HEVO_SCHEMA
+      authenticator: externalbrowser
